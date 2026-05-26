@@ -443,6 +443,14 @@
                         <label><i class="fas fa-birthday-cake"></i> Data de Nascimento *</label>
                         <input type="date" id="dataNascimento" name="dataNascimento" required>
                     </div>
+                    <div class="input-group">
+                        <label><i class="fas fa-briefcase"></i> Profissão *</label>
+                        <input type="text" id="profissao" name="profissao" required placeholder="Sua profissão">
+                    </div>
+                    <div class="input-group">
+                        <label><i class="fas fa-building"></i> Local de Trabalho *</label>
+                        <input type="text" id="localTrabalho" name="localTrabalho" required placeholder="Onde trabalha">
+                    </div>
                 </div>
 
                 <div class="categories-section">
@@ -474,8 +482,8 @@
                 <button type="submit" class="btn-submit" id="btnSubmit">
                     <i class="fas fa-paper-plane"></i> Realizar Inscrição
                 </button>
+            </form>
 
-               
             <div id="mensagem" class="message"></div>
         </div>
     </div>
@@ -603,7 +611,6 @@
         // ─── Mensagens ────────────────────────────────────────────────────────────
         let msgTimer = null;
 
-        // ✅ CORREÇÃO: fila de mensagens para não sobrescrever a confirmação de sucesso
         function mostrarMensagem(texto, tipo, duracaoMs = 6000) {
             if (msgTimer) clearTimeout(msgTimer);
             const msgDiv = document.getElementById('mensagem');
@@ -630,9 +637,11 @@
             const telefone       = document.getElementById('telefone').value;
             const email          = document.getElementById('email').value.trim();
             const dataNascimento = document.getElementById('dataNascimento').value;
+            const profissao      = document.getElementById('profissao').value.trim();
+            const localTrabalho  = document.getElementById('localTrabalho').value.trim();
 
             // Validações básicas
-            if (!nome || !cpf || !cidade || !endereco || !telefone || !email || !dataNascimento) {
+            if (!nome || !cpf || !cidade || !endereco || !telefone || !email || !dataNascimento || !profissao || !localTrabalho) {
                 mostrarMensagem('❌ Preencha todos os campos.', 'error'); return;
             }
             if (!validarCPF(cpf))              { mostrarMensagem('❌ CPF inválido.', 'error'); return; }
@@ -655,16 +664,14 @@
                 action: 'inscrever',
                 id: Date.now(),
                 nome, cpf, cidade, endereco, telefone, email, dataNascimento,
+                profissao, localTrabalho,
                 categoria: categoriaSelecionada
             });
 
             try {
-                // ✅ CORREÇÃO CORS: Google Apps Script requer no-cors para POST direto.
-                // Usamos um iframe oculto como alternativa para obter a resposta JSON.
                 const resultado = await fetchComCORSFix(payload);
 
                 if (resultado.sucesso) {
-                    // Atualizar contagens
                     if (resultado.contagens) {
                         contagens = resultado.contagens;
                     } else {
@@ -672,15 +679,12 @@
                     }
                     atualizarInterface();
 
-                    // Limpar formulário
                     document.getElementById('formInscricao').reset();
                     document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
 
-                    // ✅ CORREÇÃO BUG: montar mensagem única com tudo que precisa informar
                     const restantes = LIMITES[categoriaSelecionada] - (contagens[categoriaSelecionada] || 0);
                     let msg = `✅ Inscrição confirmada em ${categoriaSelecionada}! Restam ${restantes} vaga(s).`;
 
-                    // Avisar sobre categorias esgotadas SEM sobrescrever — agrega à msg
                     const esgotadas = Object.keys(LIMITES).filter(
                         cat => cat !== categoriaSelecionada && (contagens[cat] || 0) >= LIMITES[cat]
                     );
@@ -702,37 +706,22 @@
             }
         }
 
-        // ─── Fetch com fix de CORS para Google Apps Script ────────────────────────
-        // O Apps Script exige no-cors para POST, o que impede ler a resposta.
-        // Solução: enviamos via URL params em GET (que funciona com CORS normal).
-        // O Apps Script trata o parâmetro "action=inscrever" no doGet como fallback.
-        // Se preferir manter POST puro, publique o script com "Qualquer pessoa, incluindo anônimos".
         async function fetchComCORSFix(payloadStr) {
-            // Tentativa 1: fetch normal (funciona se o script estiver bem configurado)
             try {
                 const res = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' }, // ← evita preflight CORS
+                    headers: { 'Content-Type': 'text/plain' },
                     body: payloadStr
                 });
                 if (res.ok) return await res.json();
-            } catch (_) { /* tenta alternativa */ }
+            } catch (_) { }
 
-            // Tentativa 2: GET com dados codificados (fallback)
             const params = new URLSearchParams({ payload: payloadStr });
             const res = await fetch(`${SCRIPT_URL}?${params.toString()}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return await res.json();
         }
 
-        // ─── Exportar planilha ────────────────────────────────────────────────────
-        function exportarPlanilhaGoogle() {
-            // Abre o endpoint de exportação implementado no Apps Script
-            window.open(SCRIPT_URL + '?action=exportar', '_blank');
-            mostrarMensagem('📊 Solicitando exportação da planilha...', 'success');
-        }
-
-        // ─── Cliques nos cards de categoria ──────────────────────────────────────
         function initCardClicks() {
             document.querySelectorAll('.option-card').forEach(card => {
                 card.addEventListener('click', function () {
@@ -749,7 +738,6 @@
             });
         }
 
-        // ─── Inicializar ──────────────────────────────────────────────────────────
         carregarContagens();
         document.getElementById('formInscricao').addEventListener('submit', enviarInscricao);
         initCardClicks();
